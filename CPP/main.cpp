@@ -3,6 +3,7 @@
 #include <fstream>
 #include <string>
 #include <stdexcept>
+#include <random>
 
 // Aliases for readability
 using Vector = std::vector<double>;
@@ -116,7 +117,7 @@ public:
             }
         }
 
-        // 2. Propagate state for next step: x[k+1] = A*x[k] + B*u[k]
+        // 2. Propagate state for next step: x[k+1] = A*x[k] + B*u[k] + Bd*d[k]
         Vector x_next(num_states, 0.0);
         for (size_t i = 0; i < num_states; ++i)
         {
@@ -178,6 +179,73 @@ public:
     }
 };
 
+class Log
+{
+private:
+    std::ofstream csv_file;
+
+public:
+    // Open file and write header based on system dimensions
+    Log(const std::string &fname, const DiscreteStateSpace &sys)
+    {
+        csv_file.open(fname, std::ios::out);
+        if (!csv_file.is_open())
+        {
+            throw std::runtime_error("Failed to open file for writing: " + fname);
+        }
+
+        // Write CSV log in format:
+        // time[sec], u[0], ..., [num_inputs-1], d[0], ..., d[num_disturbances-1], x[0], ..., x[num_states-1], y[0], ..., y[num_outputs-1]
+        csv_file << "Time";
+        for (size_t i = 0; i < sys.getNumInputs(); ++i)
+        {
+            csv_file << ",u[" << i << "]";
+        }
+        for (size_t i = 0; i < sys.getNumDisturbances(); ++i)
+        {
+            csv_file << ",d[" << i << "]";
+        }
+        for (size_t i = 0; i < sys.getNumStates(); ++i)
+        {
+            csv_file << ",x[" << i << "]";
+        }
+        for (size_t i = 0; i < sys.getNumOutputs(); ++i)
+        {
+            csv_file << ",y[" << i << "]";
+        }
+        csv_file << "\n";
+    }
+    
+    void writeLog(const double tsim, const Vector &u, const Vector &d, const Vector &x, const Vector &y)
+    {
+        csv_file << tsim;
+
+        // Log all inputs
+        for (double input_val : u)
+        {
+            csv_file << "," << input_val;
+        }
+
+        // Log all disturbances
+        for (double dist_val : d)
+        {
+            csv_file << "," << dist_val;
+        }
+
+        // Log all states matching the current time step
+        for (double state_val : x)
+        {
+            csv_file << "," << state_val;
+        }
+
+        for (double output_val : y)
+        {
+            csv_file << "," << output_val;
+        }
+        csv_file << "\n";
+    }
+};
+
 int main()
 {
     // Open loop discrete-time dynamic system
@@ -190,7 +258,7 @@ int main()
     Matrix D = {{0.0},
                 {0.0}};
 
-    Matrix Bd = {{0.0},  
+    Matrix Bd = {{0.0},
                  {0.0010}};
 
     // Example LQR Optimal Gain Matrix K (1 row x 2 columns for 1 input, 2 states)
@@ -199,6 +267,14 @@ int main()
 
     // File to save to
     const std::string filename = "simout.csv";
+
+    // Setup C++ Pseudo-Random Number Generator (PRNG)
+    std::random_device rd;
+    std::mt19937 gen(rd()); // Standard mersenne_twister_engine seeded with rd()
+    // Define a Normal (Gaussian) distribution: Mean = 0.0, Standard Deviation = 2.0
+    double noise_mean = 0.0;
+    double noise_stddev = 2.0;
+    std::normal_distribution<double> disturbance_dist(noise_mean, noise_stddev);
 
     try
     {
@@ -211,29 +287,7 @@ int main()
         size_t steps = static_cast<size_t>(Tend / Ts);
 
         // Initialize CSV file stream
-        std::ofstream csv_file(filename);
-        if (!csv_file.is_open())
-        {
-            throw std::runtime_error("Failed to open file for writing: " + filename);
-        }
-
-        // Write CSV log in format:
-        // time[sec], u[0], ..., [num_inputs-1], x[0], ..., x[num_states-1], y[0], ..., y[num_outputs-1]
-
-        csv_file << "Time";
-        for (size_t i = 0; i < sys.getNumInputs(); ++i)
-        {
-            csv_file << ",u[" << i << "]";
-        }
-        for (size_t i = 0; i < sys.getNumStates(); ++i)
-        {
-            csv_file << ",x[" << i << "]";
-        }
-        for (size_t i = 0; i < sys.getNumOutputs(); ++i)
-        {
-            csv_file << ",y[" << i << "]";
-        }
-        csv_file << "\n";
+        Log log(filename, sys);
 
         // Now run up to Tend
         std::cout << "Simulating and logging data to " << filename << "...\n";
@@ -244,46 +298,23 @@ int main()
         for (size_t k = 0; k <= steps; ++k)
         {
             double tsim = k * Ts;
-            Vector u;
 
-            // Define control input u[k] (Step input of 1.0)
-            if (tsim < 0.03)
-                u = {0.0};
-            else
-                u = {1.0};
-
+            Vector d = {disturbance_dist(gen)};
             // Capture states x[k] *before* the update modifies them to x[k+1]
             const Vector &x = sys.getState();
+            Vector u = controller.computeControl(x);
 
             // Step the simulation forward
-            Vector y = sys.lsim(u);
+            Vector y = sys.lsim(u, d);
 
             // Print results to stdout
             std::cout << tsim << "\t" << y[0] << "\n";
 
             // Write to log
-            csv_file << tsim;
-
-            // Log all inputs
-            for (double input_val : u)
-            {
-                csv_file << "," << input_val;
-            }
-
-            // Log all states matching the current time step
-            for (double state_val : x)
-            {
-                csv_file << "," << state_val;
-            }
-
-            for (double output_val : y)
-            {
-                csv_file << "," << output_val;
-            }
-            csv_file << "\n";
+            log.writeLog(tsim, u, d, x, y);
         }
 
-        csv_file.close();
+        log.close();
     }
     catch (const std::exception &e)
     {

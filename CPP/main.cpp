@@ -41,7 +41,7 @@ int main()
 #endif
 
     // File to save to
-    const std::string filename = "simout.csv";
+    const std::string filename = "./data/simout.csv";
 
     // Setup C++ Pseudo-Random Number Generator (PRNG)
     std::random_device rd;

@@ -13,7 +13,7 @@ enum Scenario
 
 int main()
 {
-    Scenario scenario = DEFAULT;
+    Scenario scenario = NOISE;
 
     // Open loop discrete-time dynamic system
     Matrix A = {{1.0, 0.000999500166625, 0.0},

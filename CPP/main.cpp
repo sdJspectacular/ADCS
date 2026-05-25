@@ -5,24 +5,17 @@
 #include "LQRController.h"
 #include "Log.h"
 
+enum Scenario
+{
+    DEFAULT,
+    NOISE
+};
+
 int main()
 {
+    Scenario scenario = DEFAULT;
+
     // Open loop discrete-time dynamic system
-#if 0
-    Matrix A = {{0.9995, 0.0010},
-                {-0.9995, 0.9985}};
-    Matrix B = {{0.0000},
-                {0.0010}};
-    Matrix C = {{1.0, 0.0},
-                {0.0, 1.0}};
-    Matrix D = {{0.0},
-                {0.0}};
-    Matrix Bd = {{0.0},
-                 {0.0010}};
-    // Example LQR Optimal Gain Matrix K (1 row x 2 columns for 1 input, 2 states)
-    // Derived offline assuming Q = diag(1000, 1), R = 0.1
-    Matrix K = {{12.34, 1.56}};
-#else
     Matrix A = {{1.0, 0.000999500166625, 0.0},
                 {0.0, 0.999000499833375, 0.0},
                 {0.0, 0.0, 1.0}};
@@ -30,15 +23,14 @@ int main()
     Matrix B = {{4.99833374991668e-07},
                 {0.000999500166625008},
                 {0.0}};
-    
+
     Matrix Bd = {{4.99833374991668e-07},
-                {0.000999500166625008},
-                {0.001}};
+                 {0.000999500166625008},
+                 {0.001}};
 
     Matrix C = {{1.0, 0.732050807568877, 0.0}};
     Matrix D = {{0.0}};
     Matrix K = {{1.0, 0.732050807568877, 0.0}};
-#endif
 
     // File to save to
     const std::string filename = "./data/simout.csv";
@@ -53,14 +45,24 @@ int main()
 
     try
     {
-        DiscreteStateSpace sys(A, B, C, D, Bd);     // default x0 = [0; ...; 0]
-        sys.setInitialState({0.0, 0.0, 0.0});       // Important: initial conditions
+        DiscreteStateSpace sys(A, B, C, D, Bd); // default x0 = [0; ...; 0]
         LQRController lqr(K);
+
+        // Important: initial conditions
+        switch (scenario)
+        {
+        case NOISE:
+            sys.setInitialState({0.0, 0.0, 0.0});
+            break;
+        default:
+            sys.setInitialState({0.0, 1.0, 1.0});
+            break;
+        }
 
         // Total simulation time
         double Tend = 10.0;
         // Sample time (must match sys(A,B,C,D))
-        double Ts = 0.001;  // 1 kHz
+        double Ts = 0.001; // 1 kHz
         size_t steps = static_cast<size_t>(Tend / Ts);
 
         // Initialize CSV file stream
@@ -76,13 +78,21 @@ int main()
         {
             double tsim = k * Ts;
 
-            Vector Qdist = {disturbance_dist(gen)};
-            if (k == 1000)
-                Qdist[0] += 500.0;
-            else if (k == 3000)
-                Qdist[0] -= 500.0;
-            //Vector d = {0.0};
-            // Capture states x[k] *before* the update modifies them to x[k+1]
+            Vector Qdist = {0.0};
+            switch (scenario)
+            {
+            case NOISE:
+                Qdist[0] = disturbance_dist(gen);
+                if (k == 1000)
+                    Qdist[0] += 500.0;
+                else if (k == 3000)
+                    Qdist[0] -= 500.0;
+                break;
+            default:
+                Qdist[0] = 0.0;
+                break;
+            }
+            //  Capture states x[k] *before* the update modifies them to x[k+1]
             const Vector &x = sys.getState();
             Vector u = lqr.computeControl(x);
 

@@ -84,9 +84,9 @@ int main()
             case NOISE:
                 Qdist[0] = disturbance_dist(gen);
                 if (k == 1000)
-                    Qdist[0] += 500.0;
+                    Qdist[0] += 250.0;
                 else if (k == 3000)
-                    Qdist[0] -= 500.0;
+                    Qdist[0] -= 250.0;
                 break;
             default:
                 Qdist[0] = 0.0;

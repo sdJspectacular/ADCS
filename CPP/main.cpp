@@ -287,7 +287,7 @@ int main()
     try
     {
         DiscreteStateSpace sys(A, B, C, D, Bd); // default x0 = [0; ...; 0]
-        sys.setInitialState({1.0, -0.5});       // Important: initial conditions
+        sys.setInitialState({1.0, -0.1});       // Important: initial conditions
         LQRController lqr(K);
 
         double Tend = 0.05; // Total simulation time

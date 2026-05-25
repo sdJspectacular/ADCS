@@ -40,7 +40,7 @@ int main()
     std::mt19937 gen(rd()); // Standard mersenne_twister_engine seeded with rd()
     // Define a Normal (Gaussian) distribution: Mean = 0.0, Standard Deviation = 2.0
     double noise_mean = 0.0;
-    double noise_stddev = 2.0;
+    double noise_stddev = 1.5;
     std::normal_distribution<double> disturbance_dist(noise_mean, noise_stddev);
 
     try

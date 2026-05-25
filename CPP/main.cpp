@@ -215,7 +215,15 @@ public:
         }
         csv_file << "\n";
     }
-    
+
+    void close()
+    {
+        if (csv_file.is_open())
+        {
+            csv_file.close();
+        }
+    }
+
     void writeLog(const double tsim, const Vector &u, const Vector &d, const Vector &x, const Vector &y)
     {
         csv_file << tsim;
@@ -280,7 +288,7 @@ int main()
     {
         DiscreteStateSpace sys(A, B, C, D, Bd); // default x0 = [0; ...; 0]
         sys.setInitialState({1.0, -0.5});       // Important: initial conditions
-        LQRController controller(K);
+        LQRController lqr(K);
 
         double Tend = 0.05; // Total simulation time
         double Ts = 0.001;  // 1 kHz
@@ -302,7 +310,7 @@ int main()
             Vector d = {disturbance_dist(gen)};
             // Capture states x[k] *before* the update modifies them to x[k+1]
             const Vector &x = sys.getState();
-            Vector u = controller.computeControl(x);
+            Vector u = lqr.computeControl(x);
 
             // Step the simulation forward
             Vector y = sys.lsim(u, d);

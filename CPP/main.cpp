@@ -280,9 +280,9 @@ int main()
                 {0.000999500166625008},
                 {0.0}};
     
-    Matrix Bd = {{0.0},
-                 {0.0},
-                 {0.001}};
+    Matrix Bd = {{4.99833374991668e-07},
+                {0.000999500166625008},
+                {0.001}};
 
     Matrix C = {{1.0, 0.732050807568877, 0.0}};
     Matrix D = {{0.0}};
@@ -303,10 +303,10 @@ int main()
     try
     {
         DiscreteStateSpace sys(A, B, C, D, Bd); // default x0 = [0; ...; 0]
-        sys.setInitialState({0.0, 1.0, 1.0});       // Important: initial conditions
+        sys.setInitialState({0.0, 0.0, 0.0});       // Important: initial conditions
         LQRController lqr(K);
 
-        double Tend = 6.0; // Total simulation time
+        double Tend = 10.0; // Total simulation time
         double Ts = 0.001;  // 1 kHz
         size_t steps = static_cast<size_t>(Tend / Ts);
 
@@ -323,20 +323,24 @@ int main()
         {
             double tsim = k * Ts;
 
-            //Vector d = {disturbance_dist(gen)};
-            Vector d = {0.0};
+            Vector Qdist = {disturbance_dist(gen)};
+            if (k == 1000)
+                Qdist[0] += 500.0;
+            else if (k == 3000)
+                Qdist[0] -= 500.0;
+            //Vector d = {0.0};
             // Capture states x[k] *before* the update modifies them to x[k+1]
             const Vector &x = sys.getState();
             Vector u = lqr.computeControl(x);
 
             // Step the simulation forward
-            Vector y = sys.lsim(u, d);
+            Vector y = sys.lsim(u, Qdist);
 
             // Print results to stdout
             std::cout << tsim << "\t" << y[0] << "\n";
 
             // Write to log
-            log.writeLog(tsim, u, d, x, y);
+            log.writeLog(tsim, u, Qdist, x, y);
         }
 
         log.close();
